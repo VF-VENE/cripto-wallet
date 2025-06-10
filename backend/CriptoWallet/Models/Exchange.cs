@@ -19,6 +19,6 @@ namespace CriptoWallet.Api.Models
         public string CodigoAPI { get; set; }
 
         // Relaciones
-        public List<Transaccion> Transacciones { get; set; }
+        //public List<Transaccion> Transacciones { get; set; }
     }
 }

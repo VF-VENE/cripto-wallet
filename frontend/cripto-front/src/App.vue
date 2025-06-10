@@ -4,7 +4,7 @@
     <label>Criptomoneda:</label>
     <select v-model="compra.cryptoCode" required>
       <option disabled value="">Selecciona una</option>
-      <option v-for="crypto in criptomonedas" :key="crypto.id" :value="crypto.codigo">
+      <option v-for="crypto in criptomonedas" :key="crypto.cryptoCode" :value="crypto.cryptoCode">
       {{ crypto.nombre }}
       </option>
     </select>
@@ -14,20 +14,21 @@
     <input type="number" step="0.00001" v-model.number="compra.cantidadCripto" min="0.00001" required />
 
     <label>Cliente:</label>
-    <select v-model.number="compra.clienteID" required>
+    <select v-model="compra.clienteID" required>
       <option disabled value="">Selecciona un cliente</option>
-      <option v-for="cliente in clientes" :key="cliente.id" :value="cliente.id">
-        {{ cliente.nombre }}
+      <option v-for="cliente in clientes" :key="cliente.clienteID" :value="cliente.clienteID">
+      {{ cliente.nombre }}
       </option>
     </select>
+
 
     <label>Fecha y hora:</label>
     <input type="datetime-local" v-model="compra.fecha" required />
 
     <label>Exchange:</label>
-    <select v-model.number="compra.exchangeID" required>
+    <select v-model.number="compra.ExchangeID" required>
       <option disabled value="">Selecciona un exchange</option>
-      <option v-for="exchange in exchanges" :key="exchange.id" :value="exchange.id">
+      <option v-for="exchange in exchanges" :key="exchange.exchangeID" :value="exchange.exchangeID">
        {{ exchange.nombre }}
       </option>
     </select>
@@ -44,11 +45,11 @@ import { reactive, ref, onMounted } from 'vue'
 // Estado reactivo para la compra con los nombres exactos que espera el backend
 const compra = reactive({
   clienteID: null,
-  cryptoCode: null,
-  accion: 'compra',
+  cryptoCode: '',
+  accion: 'purchase',
   cantidadCripto: null,
   fecha: '',
-  exchangeID: null
+  ExchangeID: null
 })
 
 const clientes = ref([])
@@ -76,15 +77,11 @@ onMounted(async () => {
 
 
 async function submitCompra() {
-  console.log('clienteID:', compra.clienteID, typeof compra.clienteID)
-console.log('cryptoCode:', compra.cryptoCode, typeof compra.cryptoCode)
-console.log('exchangeID:', compra.exchangeID, typeof compra.exchangeID)
-
 
   if (
   compra.clienteID === null ||
   compra.cryptoCode === '' ||
-  compra.exchangeID === null ||
+  compra.ExchangeID === null ||
   !compra.fecha ||
   compra.cantidadCripto === null || 
   compra.cantidadCripto <= 0
@@ -98,10 +95,10 @@ console.log('exchangeID:', compra.exchangeID, typeof compra.exchangeID)
   const datosEnvio = {
     clienteID: compra.clienteID,
     cryptoCode: compra.cryptoCode,
-    accion: 'compra',
+    accion: 'purchase',
     cantidadCripto: compra.cantidadCripto,
     fecha: fechaISO,
-    exchangeID: compra.exchangeID
+    ExchangeID: compra.ExchangeID
   }
 
   try {
@@ -111,10 +108,12 @@ console.log('exchangeID:', compra.exchangeID, typeof compra.exchangeID)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datosEnvio)
     })
+    console.log("Datos enviados al backend:", JSON.stringify(datosEnvio, null, 2))
+
 
     if (!respuesta.ok) {
-      const errorInfo = await respuesta.json()
-      throw new Error(errorInfo.message || 'Error al guardar la compra')
+      const errorTexto = await respuesta.text()
+      throw new Error(errorTexto || 'Error al guardar la compra')
     }
 
     alert('Compra guardada con éxito')
@@ -122,10 +121,10 @@ console.log('exchangeID:', compra.exchangeID, typeof compra.exchangeID)
     // Limpiar formulario
     compra.clienteID = null
     compra.cryptoCode = ''
-    compra.accion = 'compra'
+    compra.accion = 'purchase'
     compra.cantidadCripto = null
     compra.fecha = ''
-    compra.exchangeID = null
+    compra.ExchangeID = null
 
   } catch (error) {
     alert(error.message)

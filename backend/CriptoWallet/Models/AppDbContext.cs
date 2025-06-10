@@ -28,10 +28,11 @@ namespace CriptoWallet.Data
 
             // Relación Transaccion → Exchange (opcional)
             modelBuilder.Entity<Transaccion>()
-                .HasOne(t => t.Exchange)
-                .WithMany(e => e.Transacciones)
-                .HasForeignKey(t => t.ExchangeID)
-                .IsRequired(false); // porque es opcional
+                .HasOne(t => t.Exchange);
+                
+                //.WithMany(e => e.Transacciones)
+                //.HasForeignKey(t => t.ExchangeID)
+                //.IsRequired(false); // porque es opcional
         }
     }
 }
