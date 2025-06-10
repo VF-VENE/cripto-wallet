@@ -38,6 +38,37 @@ namespace CriptoWallet.Controllers
             return Ok(transaccionesDto);
         }
 
+        [HttpGet("historial")]
+        public async Task<ActionResult<IEnumerable<object>>> Get([FromQuery] int? clienteId)
+        {
+            var query = _context.Transacciones
+                .Include(t => t.Cliente)
+                .Include(t => t.Exchange)
+                .AsQueryable();
+
+            if (clienteId.HasValue)
+                query = query.Where(t => t.ClienteID == clienteId);
+
+            var transacciones = await query
+                .OrderByDescending(t => t.Fecha)
+                .Select(t => new {
+                    id = t.TransaccionID,
+                    action = t.Accion,
+                    crypto_code = t.CryptoCode,
+                    client_id = t.ClienteID,
+                    crypto_amount = t.CantidadCripto,
+                    money = t.Monto,
+                    datetime = t.Fecha,
+                    nombreCliente = t.Cliente.Nombre,          // opcional si querés mostrarlo
+                    nombreExchange = t.Exchange.Nombre // opcional también
+                })
+                .ToListAsync();
+
+            return Ok(transacciones);
+        }
+
+
+
 
         [HttpPost]
         public async Task<ActionResult<Transaccion>> Post([FromBody] TransaccionDto transaccionDto)
