@@ -41,6 +41,8 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { DateTime } from 'luxon'
+
 
 const router = useRouter()
 
@@ -89,8 +91,10 @@ async function submitCompra() {
     alert('Debes completar todos los campos obligatorios.')
     return
   }
+  const dt = DateTime.fromISO(compra.fecha, { zone: 'local' }) // fecha local del input
+  const dtArgentina = dt.setZone('America/Argentina/Buenos_Aires')
 
-  const fechaISO = new Date(compra.fecha).toISOString()
+  const fechaISO = dtArgentina.toISO()
 
   const datosEnvio = {
     clienteID: compra.clienteID,

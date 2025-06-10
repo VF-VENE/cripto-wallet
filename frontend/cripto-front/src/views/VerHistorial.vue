@@ -95,12 +95,50 @@ export default {
 </script>
 
 <style scoped>
-table {
-  border-collapse: collapse;
-}
-th, td {
-  text-align: left;
-}
+  table {
+    width: 100%;
+    border-collapse: collapse; /* Une bordes para evitar doble borde */
+  }
+
+  thead {
+    background-color: #f3f4f6; /* Gris claro */
+  }
+
+  th, td {
+    border: 1px solid #ccc; /* Bordes grises */
+    padding: 8px 12px;
+    text-align: left;
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: #f9fafb; /* Color de fila alternada */
+  }
+
+  tbody tr:hover {
+    background-color: #e2e8f0; /* Resalta fila al pasar mouse */
+  }
+
+  th {
+    font-weight: 600;
+    color: #374151; /* Gris oscuro */
+  }
+
+  button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #2563eb; /* Azul */
+  }
+
+  button:hover {
+    text-decoration: underline;
+  }
+
+  /* Opcional: separa botones */
+  button + button {
+    margin-left: 10px;
+  }
 </style>
+
 
 
