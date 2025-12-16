@@ -1,11 +1,9 @@
 ﻿using CriptoWallet.Api.Models;
 using CriptoWallet.Data;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CriptoWallet.Models;
-
 
 namespace CriptoWallet.Controllers
 {
@@ -39,7 +37,7 @@ namespace CriptoWallet.Controllers
         }
 
         [HttpGet("historial")]
-        public async Task<ActionResult<IEnumerable<object>>> Get([FromQuery] int? clienteId)
+        public async Task<ActionResult<IEnumerable<object>>> GetHistorial([FromQuery] int? clienteId)
         {
             var query = _context.Transacciones
                 .Include(t => t.Cliente)
@@ -59,80 +57,135 @@ namespace CriptoWallet.Controllers
                     crypto_amount = t.CantidadCripto,
                     money = t.Monto,
                     datetime = t.Fecha,
-                    nombreCliente = t.Cliente.Nombre,          // opcional si querés mostrarlo
-                    nombreExchange = t.Exchange.Nombre // opcional también
+                    nombreCliente = t.Cliente.Nombre,
+                    nombreExchange = t.Exchange.Nombre
                 })
                 .ToListAsync();
 
             return Ok(transacciones);
         }
 
+        [HttpGet("{id}")]
+        public async Task<ActionResult<object>> GetById(int id)
+        {
+            var t = await _context.Transacciones
+                .Include(t => t.Cliente)
+                .Include(t => t.Exchange)
+                .FirstOrDefaultAsync(x => x.TransaccionID == id);
 
+            if (t == null) return NotFound("Transacción no encontrada");
 
+            return Ok(new
+            {
+                id = t.TransaccionID,
+                action = t.Accion,
+                crypto_code = t.CryptoCode,
+                client_id = t.ClienteID,
+                crypto_amount = t.CantidadCripto,
+                money = t.Monto,
+                datetime = t.Fecha,
+                nombreCliente = t.Cliente.Nombre,
+                nombreExchange = t.Exchange.Nombre
+            });
+        }
 
         [HttpPost]
         public async Task<ActionResult<Transaccion>> Post([FromBody] TransaccionDto transaccionDto)
         {
-            try
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            if (transaccionDto.CantidadCripto <= 0) return BadRequest("La cantidad debe ser mayor a 0.");
+
+            var clienteExiste = await _context.Clientes.AnyAsync(c => c.ClienteID == transaccionDto.ClienteID);
+            if (!clienteExiste) return BadRequest("El cliente no existe.");
+
+            var exchangeExiste = await _context.Exchanges.AnyAsync(e => e.ExchangeID == transaccionDto.ExchangeID);
+            if (!exchangeExiste) return BadRequest("El exchange no existe.");
+
+            if (transaccionDto.Accion == "sale")
             {
-                if (transaccionDto.CantidadCripto <= 0)
-                    return BadRequest("Cantidad inválida");
+                var compras = await _context.Transacciones
+                    .Where(t => t.ClienteID == transaccionDto.ClienteID && t.CryptoCode == transaccionDto.CryptoCode && t.Accion == "purchase")
+                    .SumAsync(t => t.CantidadCripto);
 
-                if (string.IsNullOrEmpty(transaccionDto.CryptoCode))
-                    return BadRequest("Falta cryptoCode");
+                var ventas = await _context.Transacciones
+                    .Where(t => t.ClienteID == transaccionDto.ClienteID && t.CryptoCode == transaccionDto.CryptoCode && t.Accion == "sale")
+                    .SumAsync(t => t.CantidadCripto);
 
-                if (transaccionDto.ClienteID <= 0)
-                    return BadRequest("Cliente inválido");
+                decimal saldoDisponible = compras - ventas;
 
-                if (transaccionDto.Accion != "purchase" && transaccionDto.Accion != "sale")
-                    return BadRequest("Acción inválida");
-
-                if (transaccionDto.Fecha == DateTime.MinValue)
-                    return BadRequest("Fecha inválida");
-
-                if (transaccionDto.ExchangeID == null || transaccionDto.ExchangeID <= 0)
-                    return BadRequest("Exchange inválido");
-
-                decimal precio = await ObtenerPrecioCripto(transaccionDto.ExchangeID.Value, transaccionDto.CryptoCode);
-
-                var transaccion = new Transaccion
-                {
-                    ClienteID = transaccionDto.ClienteID,
-                    CryptoCode = transaccionDto.CryptoCode,
-                    Accion = transaccionDto.Accion,
-                    CantidadCripto = transaccionDto.CantidadCripto,
-                    Fecha = transaccionDto.Fecha,
-                    Monto = precio * transaccionDto.CantidadCripto,
-                    ExchangeID = transaccionDto.ExchangeID
-                };
-
-                _context.Transacciones.Add(transaccion);
-                await _context.SaveChangesAsync();
-
-                return CreatedAtAction(nameof(Get), new { id = transaccion.TransaccionID }, transaccion);
+                if (transaccionDto.CantidadCripto > saldoDisponible)
+                    return BadRequest("Saldo insuficiente para realizar la venta.");
             }
-            catch (Exception ex)
+
+            decimal precio = await ObtenerPrecioCripto(transaccionDto.ExchangeID.Value, transaccionDto.CryptoCode);
+            if (precio <= 0) return BadRequest("No se pudo obtener el precio del exchange.");
+
+            var transaccion = new Transaccion
             {
-                Console.WriteLine("Error al guardar transacción: " + ex.Message);
-                Console.WriteLine(ex.StackTrace);
+                ClienteID = transaccionDto.ClienteID,
+                CryptoCode = transaccionDto.CryptoCode.ToLower(),
+                Accion = transaccionDto.Accion,
+                CantidadCripto = transaccionDto.CantidadCripto,
+                Fecha = transaccionDto.Fecha,
+                Monto = precio * transaccionDto.CantidadCripto,
+                ExchangeID = transaccionDto.ExchangeID
+            };
 
-                return StatusCode(500, "Error interno: " + ex.Message);
-            }
+            _context.Transacciones.Add(transaccion);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetById), new { id = transaccion.TransaccionID }, transaccion);
         }
 
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
+        {
+            var transaccion = await _context.Transacciones.FindAsync(id);
+            if (transaccion == null) return NotFound("Transacción no encontrada");
 
+            if (updates.TryGetProperty("datetime", out var dateProp))
+            {
+                transaccion.Fecha = dateProp.GetDateTime();
+            }
 
-        // Método privado para consultar precio externo
+            if (updates.TryGetProperty("crypto_amount", out var amountProp))
+            {
+                decimal nuevaCantidad = amountProp.GetDecimal();
+                if (nuevaCantidad <= 0) return BadRequest("La cantidad debe ser mayor a 0.");
+
+                decimal precioActual = await ObtenerPrecioCripto(transaccion.ExchangeID.Value, transaccion.CryptoCode);
+                if (precioActual > 0)
+                {
+                    transaccion.Monto = precioActual * nuevaCantidad;
+                }
+                transaccion.CantidadCripto = nuevaCantidad;
+            }
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var transaccion = await _context.Transacciones.FindAsync(id);
+            if (transaccion == null) return NotFound();
+
+            _context.Transacciones.Remove(transaccion);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
         private async Task<decimal> ObtenerPrecioCripto(int exchangeId, string cryptoCode)
         {
             try
             {
                 var exchangeEntity = await _context.Exchanges.FindAsync(exchangeId);
-                if (exchangeEntity == null)
-                    return 0;
+                if (exchangeEntity == null) return 0;
 
                 string codigoAPI = exchangeEntity.CodigoAPI;
-
                 using var httpClient = new HttpClient();
                 string url = $"https://criptoya.com/api/{codigoAPI}/{cryptoCode}/ars";
 
@@ -140,7 +193,6 @@ namespace CriptoWallet.Controllers
                 if (!response.IsSuccessStatusCode) return 0;
 
                 var json = await response.Content.ReadAsStringAsync();
-
                 var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("ask", out var priceElement))
                 {

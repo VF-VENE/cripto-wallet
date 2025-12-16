@@ -25,6 +25,6 @@ namespace CriptoWallet.Api.Models
         public DateTime FechaRegistro { get; set; } = DateTime.Now;
 
         // Relaciones
-        public List<Transaccion> Transacciones { get; set; }
+        public List<Transaccion>? Transacciones { get; set; }
     }
 }
